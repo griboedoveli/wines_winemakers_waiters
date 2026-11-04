@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type Lang = 'en' | 'ru' | 'ka';
-type Organization = { id: string; name: string; kind: 'restaurant' | 'supplier' | 'winemaker'; created_at: string; archived_at?: string | null };
+type Organization = { id: string; name: string; kind: 'restaurant' | 'supplier' | 'winemaker'; contact_first_name?: string | null; contact_last_name?: string | null; contact_phone?: string | null; created_at: string; archived_at?: string | null };
 type ManagerInfo = { id: string; first_name: string; last_name: string; phone: string | null };
 const copy = {
   en: { title: 'Wines, Winemakers and Waiters', subtitle: 'A better way to sell wine', login: 'Sign in', email: 'Email', password: 'Password', submit: 'Sign in', signing: 'Signing in…', logout: 'Sign out', admin: 'WWW administrator', welcome: 'You are signed in and your administrator access is confirmed.', checking: 'Checking your access…', noRole: 'Your account is active, but no WWW role has been assigned yet.', config: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the Vercel project environment variables.', reset: 'Enter your email and password to continue.', organizations: 'Organizations', create: 'Create organization', orgName: 'Organization name', restaurant: 'Restaurant', supplier: 'Supplier', winemaker: 'Winemaker', creating: 'Creating…', created: 'Organization created.', empty: 'No organizations yet.' },
@@ -23,6 +23,9 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [orgName, setOrgName] = useState('');
+  const [orgContactFirstName, setOrgContactFirstName] = useState('');
+  const [orgContactLastName, setOrgContactLastName] = useState('');
+  const [orgContactPhone, setOrgContactPhone] = useState('');
   const [orgKind, setOrgKind] = useState<'restaurant' | 'supplier' | 'winemaker'>('restaurant');
   const [orgBusy, setOrgBusy] = useState(false);
   const [managerPhone, setManagerPhone] = useState('');
@@ -70,7 +73,7 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !session || isAdmin !== true) return;
     let alive = true;
-    supabase.from('organizations').select('id,name,kind,created_at,archived_at').is('archived_at', null).order('created_at', { ascending: false })
+    supabase.from('organizations').select('id,name,kind,contact_first_name,contact_last_name,contact_phone,created_at,archived_at').is('archived_at', null).order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (!alive) return;
         if (error) setMessage(error.message);
@@ -110,13 +113,16 @@ export default function App() {
     setOrgBusy(true);
     setMessage('');
     const { data, error } = await supabase.from('organizations')
-      .insert({ name: orgName.trim(), kind: orgKind })
-      .select('id,name,kind,created_at,archived_at')
+      .insert({ name: orgName.trim(), kind: orgKind, contact_first_name: orgContactFirstName.trim(), contact_last_name: orgContactLastName.trim(), contact_phone: orgContactPhone.trim().replace(/[\\s()-]/g, '') })
+      .select('id,name,kind,contact_first_name,contact_last_name,contact_phone,created_at,archived_at')
       .single();
     if (error) setMessage(error.message);
     else if (data) {
       setOrganizations(current => [data as Organization, ...current]);
       setOrgName('');
+      setOrgContactFirstName('');
+      setOrgContactLastName('');
+      setOrgContactPhone('');
       setMessage(lang === 'ru' ? 'Организация создана.' : lang === 'ka' ? 'ორგანიზაცია შეიქმნა.' : 'Organization created.');
     }
     setOrgBusy(false);
@@ -157,7 +163,7 @@ export default function App() {
     const { data, error } = await supabase.from('organizations')
       .update({ name: editingOrgName.trim() })
       .eq('id', orgId)
-      .select('id,name,kind,created_at,archived_at')
+      .select('id,name,kind,contact_first_name,contact_last_name,contact_phone,created_at,archived_at')
       .single();
     if (error) setMessage(error.message);
     else {
@@ -225,13 +231,18 @@ export default function App() {
               <h2>{t.organizations}</h2>
               <form onSubmit={createOrganization}>
                 <label>{t.orgName}<input required value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Wine House Tbilisi" /></label>
+                <label>Имя контактного лица<input required value={orgContactFirstName} onChange={e => setOrgContactFirstName(e.target.value)} placeholder="Имя" /></label>
+                <label>Фамилия контактного лица<input required value={orgContactLastName} onChange={e => setOrgContactLastName(e.target.value)} placeholder="Фамилия" /></label>
+                <label>Телефон организации<input type="tel" required value={orgContactPhone} onChange={e => setOrgContactPhone(e.target.value)} placeholder="+995 5XX XX XX XX" /></label>
                 <label>Type<select value={orgKind} onChange={e => setOrgKind(e.target.value as 'restaurant' | 'supplier' | 'winemaker')}><option value="restaurant">{t.restaurant}</option><option value="supplier">{t.supplier}</option><option value="winemaker">{t.winemaker}</option></select></label>
-                <button className="btn primary wide" type="submit" disabled={orgBusy || !orgName.trim()}>{orgBusy ? t.creating : t.create}</button>
+                <button className="btn primary wide" type="submit" disabled={orgBusy || !orgName.trim() || !orgContactFirstName.trim() || !orgContactLastName.trim() || !orgContactPhone.trim()}>{orgBusy ? t.creating : t.create}</button>
               </form>
               <div className="org-list">{organizations.map(org => <div className="org-row org-row-managed" key={org.id}>
                 <div className="org-main">
                   {editingOrgId === org.id ? <input className="org-rename-input" value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} /> : <b>{org.name}</b>}
                   <small>{org.kind === 'restaurant' ? t.restaurant : org.kind === 'supplier' ? t.supplier : t.winemaker}</small>
+                  {(org.contact_first_name || org.contact_last_name) && <small>Контакт: {[org.contact_first_name, org.contact_last_name].filter(Boolean).join(' ')}</small>}
+                  {org.contact_phone && <small>Телефон: {org.contact_phone}</small>}
                   {org.kind === 'restaurant' && <div className="manager-cards">
                     {(managersByOrg[org.id] ?? []).map(manager => <div className="manager-card" key={manager.id}>
                       <b>{[manager.first_name, manager.last_name].filter(Boolean).join(' ')}</b>
