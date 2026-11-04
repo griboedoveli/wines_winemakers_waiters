@@ -113,3 +113,5 @@
 .public-entry form label{display:block;font-size:10px;color:#777;margin:14px 0}
 .public-entry form input{display:block;width:100%;padding:13px;border:1px solid #e3e0d8;border-radius:8px;margin-top:7px;font:13px 'DM Sans';background:#fff}
 @media(max-width:480px){.public-entry{margin:12px auto;padding:20px}.registration-types{gap:5px}.registration-type{padding:12px 4px}.registration-type b{font-size:10px}}
+
+.brand-home{border:0;background:transparent;color:inherit;padding:0;font:inherit;cursor:pointer;text-align:left}
