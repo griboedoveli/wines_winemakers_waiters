@@ -24,6 +24,9 @@ export default function App() {
   const [orgName, setOrgName] = useState('');
   const [orgKind, setOrgKind] = useState<'restaurant' | 'supplier' | 'winemaker'>('restaurant');
   const [orgBusy, setOrgBusy] = useState(false);
+  const [managerEmail, setManagerEmail] = useState('');
+  const [managerOrgId, setManagerOrgId] = useState('');
+  const [managerBusy, setManagerBusy] = useState(false);
   const t = copy[lang];
 
   useEffect(() => {
@@ -87,6 +90,38 @@ export default function App() {
     setOrgBusy(false);
   }
 
+  async function assignManager(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !managerEmail.trim() || !managerOrgId) return;
+    setManagerBusy(true);
+    setMessage('');
+    const normalizedEmail = managerEmail.trim().toLowerCase();
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id,email')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+    if (profileError) {
+      setMessage(profileError.message);
+      setManagerBusy(false);
+      return;
+    }
+    if (!profile) {
+      setMessage('Аккаунт с таким email не найден. Сначала создай пользователя в Supabase → Authentication → Users.');
+      setManagerBusy(false);
+      return;
+    }
+    const { error: membershipError } = await supabase
+      .from('memberships')
+      .insert({ organization_id: managerOrgId, user_id: profile.id, role: 'manager' });
+    if (membershipError) setMessage(membershipError.message);
+    else {
+      setManagerEmail('');
+      setMessage('Менеджер назначен ресторану.');
+    }
+    setManagerBusy(false);
+  }
+
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return;
@@ -134,6 +169,18 @@ export default function App() {
                 <button className="btn primary wide" type="submit" disabled={orgBusy || !orgName.trim()}>{orgBusy ? t.creating : t.create}</button>
               </form>
               <div className="org-list">{organizations.map(org => <div className="org-row" key={org.id}><div><b>{org.name}</b><small>{org.kind === 'restaurant' ? t.restaurant : org.kind === 'supplier' ? t.supplier : t.winemaker}</small></div><span>{org.kind === 'restaurant' ? '🍽️' : org.kind === 'supplier' ? '📦' : '🍇'}</span></div>)}{organizations.length === 0 && <p>{t.empty}</p>}</div>
+              <div className="manager-assignment">
+                <h2>Назначить менеджера ресторана</h2>
+                <p>Сначала создай аккаунт пользователя в Supabase → Authentication → Users. Здесь привяжи его к ресторану по email.</p>
+                <form onSubmit={assignManager}>
+                  <label>Ресторан<select required value={managerOrgId} onChange={e => setManagerOrgId(e.target.value)}>
+                    <option value="">Выбери ресторан</option>
+                    {organizations.filter(org => org.kind === 'restaurant').map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
+                  </select></label>
+                  <label>Email менеджера<input type="email" required value={managerEmail} onChange={e => setManagerEmail(e.target.value)} placeholder="manager@restaurant.com" /></label>
+                  <button className="btn primary wide" type="submit" disabled={managerBusy || !managerOrgId || !managerEmail.trim()}>{managerBusy ? 'Назначаем…' : 'Назначить менеджера'}</button>
+                </form>
+              </div>
             </div>
           </> : <><h2>{t.login}</h2><p>{t.noRole}</p></>}
           <button className="btn quiet wide" onClick={signOut}>{t.logout}</button>
