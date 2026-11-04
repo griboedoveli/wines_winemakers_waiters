@@ -23,3 +23,7 @@
 .org-actions .btn{padding:8px 9px}
 .org-rename-input{width:100%;padding:9px;border:1px solid #d9ddd5;border-radius:7px;font:13px 'DM Sans'}
 .btn.danger{background:#f8e9e5;color:#8d4034}
+
+.manager-card{margin-top:8px;padding:9px 10px;background:#f3f4ef;border-radius:8px}
+.manager-card b{display:block;font-size:11px;color:#304738}
+.manager-card small{display:block;font-size:9px;color:#85877b;margin-top:3px}
