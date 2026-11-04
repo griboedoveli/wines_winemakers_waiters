@@ -401,8 +401,8 @@ export default function App() {
           {publicView === 'home' ? <>
             <div className="public-hero-mark">WWW</div>
             <p>{t.home}</p>
-            <button className="btn primary wide" type="button" onClick={() => { setPublicView('signin'); setOtpSent(false); setMessage(''); }}'>{t.signIn}</button>
-            <button className="btn quiet wide" type="button" onClick={() => { setPublicView('register'); setOtpSent(false); setMessage(''); }}'>{t.registration}</button>
+            <button className="btn primary wide" type="button" onClick={() => { setPublicView('signin'); setOtpSent(false); setMessage(''); }}>{t.signIn}</button>
+            <button className="btn quiet wide" type="button" onClick={() => { setPublicView('register'); setOtpSent(false); setMessage(''); }}>{t.registration}</button>
             <button className="text-link" type="button" onClick={() => { setPublicView('signin'); setShowEmailLogin(true); setMessage(''); }}>{t.adminLogin}</button>
           </> : publicView === 'signin' ? <>
             <button className="text-link back-link" type="button" onClick={() => { setPublicView('home'); setOtpSent(false); setShowEmailLogin(false); setMessage(''); }}>{t.backHome}</button>
