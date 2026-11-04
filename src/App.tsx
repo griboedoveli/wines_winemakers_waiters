@@ -5,7 +5,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type Lang = 'en' | 'ru' | 'ka';
 type Organization = { id: string; name: string; kind: 'restaurant' | 'supplier' | 'winemaker'; created_at: string; archived_at?: string | null };
-type ManagerInfo = { first_name: string; last_name: string; phone: string | null };
+type ManagerInfo = { id: string; first_name: string; last_name: string; phone: string | null };
 const copy = {
   en: { title: 'Wines, Winemakers and Waiters', subtitle: 'A better way to sell wine', login: 'Sign in', email: 'Email', password: 'Password', submit: 'Sign in', signing: 'Signing in…', logout: 'Sign out', admin: 'WWW administrator', welcome: 'You are signed in and your administrator access is confirmed.', checking: 'Checking your access…', noRole: 'Your account is active, but no WWW role has been assigned yet.', config: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the Vercel project environment variables.', reset: 'Enter your email and password to continue.', organizations: 'Organizations', create: 'Create organization', orgName: 'Organization name', restaurant: 'Restaurant', supplier: 'Supplier', winemaker: 'Winemaker', creating: 'Creating…', created: 'Organization created.', empty: 'No organizations yet.' },
   ru: { title: 'Wines, Winemakers and Waiters', subtitle: 'Умнее продаём вино', login: 'Вход в систему', email: 'Email', password: 'Пароль', submit: 'Войти', signing: 'Входим…', logout: 'Выйти', admin: 'Администратор WWW', welcome: 'Вы вошли в систему. Права администратора подтверждены.', checking: 'Проверяем ваши права…', noRole: 'Аккаунт активен, но роль в WWW пока не назначена.', config: 'Supabase не настроен. Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в переменные окружения проекта Vercel.', reset: 'Введите email и пароль для входа.', organizations: 'Организации', create: 'Создать организацию', orgName: 'Название организации', restaurant: 'Ресторан', supplier: 'Поставщик', winemaker: 'Винодел', creating: 'Создаём…', created: 'Организация создана.', empty: 'Организаций пока нет.' },
@@ -28,7 +28,8 @@ export default function App() {
   const [managerPhone, setManagerPhone] = useState('');
   const [managerFirstName, setManagerFirstName] = useState('');
   const [managerLastName, setManagerLastName] = useState('');
-  const [managersByOrg, setManagersByOrg] = useState<Record<string, ManagerInfo>>({});
+  const [managersByOrg, setManagersByOrg] = useState<Record<string, ManagerInfo[]>>({});
+  const [addingManagerOrgId, setAddingManagerOrgId] = useState<string | null>(null);
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
   const [editingOrgName, setEditingOrgName] = useState('');
   const [managerOrgId, setManagerOrgId] = useState('');
@@ -86,30 +87,20 @@ export default function App() {
     let alive = true;
     const restaurantIds = organizations.filter(org => org.kind === 'restaurant').map(org => org.id);
     if (restaurantIds.length === 0) { setManagersByOrg({}); return; }
-    (async () => {
-      const { data: memberships, error: membershipError } = await supabase
-        .from('memberships').select('organization_id,user_id').eq('role', 'manager').in('organization_id', restaurantIds);
-      if (membershipError || !memberships?.length) {
-        if (alive) setManagersByOrg({});
-        return;
-      }
-      const userIds = memberships.map(item => item.user_id);
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles').select('id,first_name,last_name,phone').in('id', userIds);
-      if (!alive) return;
-      if (profileError || !profiles) { setManagersByOrg({}); return; }
-      const profileMap = new Map(profiles.map(profile => [profile.id, profile]));
-      const next: Record<string, ManagerInfo> = {};
-      memberships.forEach(item => {
-        const profile = profileMap.get(item.user_id);
-        if (profile) next[item.organization_id] = {
-          first_name: profile.first_name ?? '',
-          last_name: profile.last_name ?? '',
-          phone: profile.phone ?? null
-        };
+    supabase.from('restaurant_manager_cards')
+      .select('id,organization_id,first_name,last_name,phone')
+      .in('organization_id', restaurantIds)
+      .order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) { setMessage(error.message); return; }
+        const next: Record<string, ManagerInfo[]> = {};
+        (data ?? []).forEach((item: any) => {
+          const { organization_id, ...manager } = item;
+          next[organization_id] = [...(next[organization_id] ?? []), manager as ManagerInfo];
+        });
+        setManagersByOrg(next);
       });
-      setManagersByOrg(next);
-    })();
     return () => { alive = false; };
   }, [session, isAdmin, organizations]);
 
@@ -131,45 +122,32 @@ export default function App() {
     setOrgBusy(false);
   }
 
-  async function assignManager(event: FormEvent<HTMLFormElement>) {
+  async function createManagerCard(event: FormEvent<HTMLFormElement>, organizationId: string) {
     event.preventDefault();
-    if (!supabase || !managerPhone.trim() || !managerOrgId) return;
+    if (!supabase || !managerPhone.trim() || !managerFirstName.trim() || !managerLastName.trim()) return;
     setManagerBusy(true);
     setMessage('');
     const normalizedPhone = managerPhone.trim().replace(/[\s()-]/g, '');
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id,phone')
-      .eq('phone', normalizedPhone)
-      .maybeSingle();
-    if (profileError) {
-      setMessage(profileError.message);
-      setManagerBusy(false);
-      return;
-    }
-    if (!profile) {
-      setMessage('Аккаунт с таким номером телефона не найден.');
-      setManagerBusy(false);
-      return;
-    }
-    const { error: profileUpdateError } = await supabase.from('profiles')
-      .update({ first_name: managerFirstName.trim(), last_name: managerLastName.trim() })
-      .eq('id', profile.id);
-    if (profileUpdateError) {
-      setMessage(profileUpdateError.message);
-      setManagerBusy(false);
-      return;
-    }
-    const { error: membershipError } = await supabase
-      .from('memberships')
-      .insert({ organization_id: managerOrgId, user_id: profile.id, role: 'manager' });
-    if (membershipError) setMessage(membershipError.message);
-    else {
+    const { data, error } = await supabase.from('restaurant_manager_cards')
+      .insert({
+        organization_id: organizationId,
+        first_name: managerFirstName.trim(),
+        last_name: managerLastName.trim(),
+        phone: normalizedPhone
+      })
+      .select('id,first_name,last_name,phone')
+      .single();
+    if (error) setMessage(error.message);
+    else if (data) {
+      setManagersByOrg(current => ({
+        ...current,
+        [organizationId]: [...(current[organizationId] ?? []), data as ManagerInfo]
+      }));
       setManagerPhone('');
       setManagerFirstName('');
       setManagerLastName('');
-      setManagersByOrg(current => ({ ...current, [managerOrgId]: { first_name: managerFirstName.trim(), last_name: managerLastName.trim(), phone: normalizedPhone } }));
-      setMessage('Менеджер назначен ресторану.');
+      setAddingManagerOrgId(null);
+      setMessage('Карточка менеджера создана.');
     }
     setManagerBusy(false);
   }
@@ -254,31 +232,32 @@ export default function App() {
                 <div className="org-main">
                   {editingOrgId === org.id ? <input className="org-rename-input" value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} /> : <b>{org.name}</b>}
                   <small>{org.kind === 'restaurant' ? t.restaurant : org.kind === 'supplier' ? t.supplier : t.winemaker}</small>
-                  {org.kind === 'restaurant' && managersByOrg[org.id] && <div className="manager-card"><b>{[managersByOrg[org.id].first_name, managersByOrg[org.id].last_name].filter(Boolean).join(' ') || 'Менеджер без имени'}</b><small>{managersByOrg[org.id].phone || 'Телефон не указан'}</small></div>}
+                  {org.kind === 'restaurant' && <div className="manager-cards">
+                    {(managersByOrg[org.id] ?? []).map(manager => <div className="manager-card" key={manager.id}>
+                      <b>{[manager.first_name, manager.last_name].filter(Boolean).join(' ')}</b>
+                      <small>{manager.phone || 'Телефон не указан'}</small>
+                    </div>)}
+                    {addingManagerOrgId === org.id && <form className="manager-inline-form" onSubmit={event => createManagerCard(event, org.id)}>
+                      <label>Имя менеджера<input required value={managerFirstName} onChange={event => setManagerFirstName(event.target.value)} placeholder="Имя" /></label>
+                      <label>Фамилия менеджера<input required value={managerLastName} onChange={event => setManagerLastName(event.target.value)} placeholder="Фамилия" /></label>
+                      <label>Телефон менеджера<input type="tel" required value={managerPhone} onChange={event => setManagerPhone(event.target.value)} placeholder="+995 5XX XX XX XX" /></label>
+                      <button className="btn primary" type="submit" disabled={managerBusy || !managerFirstName.trim() || !managerLastName.trim() || !managerPhone.trim()}>{managerBusy ? 'Сохраняем…' : 'Создать карточку'}</button>
+                      <button className="btn quiet" type="button" onClick={() => { setAddingManagerOrgId(null); setManagerFirstName(''); setManagerLastName(''); setManagerPhone(''); }}>Отмена</button>
+                    </form>}
+                  </div>}
                 </div>
                 <div className="org-actions">
                   {editingOrgId === org.id ? <>
                     <button className="btn primary" type="button" onClick={() => renameOrganization(org.id)}>Сохранить</button>
                     <button className="btn quiet" type="button" onClick={() => setEditingOrgId(null)}>Отмена</button>
                   </> : <>
+                    {org.kind === 'restaurant' && <button className="btn primary" type="button" onClick={() => { setAddingManagerOrgId(addingManagerOrgId === org.id ? null : org.id); setManagerFirstName(''); setManagerLastName(''); setManagerPhone(''); }}>+ Менеджер</button>}
                     <button className="btn quiet" type="button" onClick={() => { setEditingOrgId(org.id); setEditingOrgName(org.name); }}>Переименовать</button>
                     <button className="btn danger" type="button" onClick={() => archiveOrganization(org)}>Удалить</button>
                   </>}
                 </div>
               </div>)}{organizations.length === 0 && <p>{t.empty}</p>}</div>
-              <div className="manager-assignment">
-                <h2>Назначить менеджера ресторана</h2>
-                <form onSubmit={assignManager}>
-                  <label>Ресторан<select required value={managerOrgId} onChange={e => setManagerOrgId(e.target.value)}>
-                    <option value="">Выбери ресторан</option>
-                    {organizations.filter(org => org.kind === 'restaurant').map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
-                  </select></label>
-                  <label>Имя менеджера<input required value={managerFirstName} onChange={e => setManagerFirstName(e.target.value)} placeholder="Имя" /></label>
-                  <label>Фамилия менеджера<input required value={managerLastName} onChange={e => setManagerLastName(e.target.value)} placeholder="Фамилия" /></label>
-                  <label>Телефон менеджера<input type="tel" required value={managerPhone} onChange={e => setManagerPhone(e.target.value)} placeholder="+995 5XX XX XX XX" /></label>
-                  <button className="btn primary wide" type="submit" disabled={managerBusy || !managerOrgId || !managerPhone.trim() || !managerFirstName.trim() || !managerLastName.trim()}>{managerBusy ? 'Назначаем…' : 'Назначить менеджера'}</button>
-                </form>
-              </div>
+
             </div>
           </> : <><h2>{t.login}</h2><p>{t.noRole}</p></>}
           <button className="btn quiet wide" onClick={signOut}>{t.logout}</button>
