@@ -94,3 +94,22 @@
 
 /* Remove the extra green-tinted strip behind restaurant manager cards */
 .org-group.restaurant .manager-card{background:transparent;border:0;border-radius:0;padding:7px 0}
+
+
+/* Public landing, sign-in and registration */
+.public-entry{max-width:560px;margin:30px auto;padding:30px}
+.public-entry h2{text-align:center;font:600 25px 'Playfair Display';margin:10px 0}
+.public-entry>p,.public-entry form>p{text-align:center;font-size:12px;line-height:1.65;color:#85877b;margin:0 0 20px}
+.public-hero-mark{width:76px;height:76px;border-radius:22px;background:#304738;color:#fff;display:grid;place-items:center;margin:4px auto 20px;font:600 19px 'Playfair Display';letter-spacing:3px}
+.public-entry>.wide{margin:7px 0}
+.text-link{display:block;margin:13px auto 0;padding:5px;border:0;background:transparent;color:#71806b;font:600 11px 'DM Sans';cursor:pointer}
+.back-link{margin:0 0 18px 0}
+.registration-types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0 22px}
+.registration-type{min-width:0;padding:14px 8px;border:1px solid #e6e2d9;border-radius:10px;background:#fff;color:#52614f;text-align:center;cursor:pointer}
+.registration-type b,.registration-type small{display:block}
+.registration-type b{font:600 12px 'DM Sans'}
+.registration-type small{font-size:9px;color:#969589;margin-top:5px}
+.registration-type.selected{border-color:#648052;background:#edf2eb;box-shadow:0 0 0 1px #648052 inset}
+.public-entry form label{display:block;font-size:10px;color:#777;margin:14px 0}
+.public-entry form input{display:block;width:100%;padding:13px;border:1px solid #e3e0d8;border-radius:8px;margin-top:7px;font:13px 'DM Sans';background:#fff}
+@media(max-width:480px){.public-entry{margin:12px auto;padding:20px}.registration-types{gap:5px}.registration-type{padding:12px 4px}.registration-type b{font-size:10px}}
