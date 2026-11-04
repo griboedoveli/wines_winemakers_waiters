@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type Lang = 'en' | 'ru' | 'ka';
 type Organization = { id: string; name: string; kind: 'restaurant' | 'supplier' | 'winemaker'; created_at: string; archived_at?: string | null };
+type ManagerInfo = { first_name: string; last_name: string; phone: string | null };
 const copy = {
   en: { title: 'Wines, Winemakers and Waiters', subtitle: 'A better way to sell wine', login: 'Sign in', email: 'Email', password: 'Password', submit: 'Sign in', signing: 'Signing in…', logout: 'Sign out', admin: 'WWW administrator', welcome: 'You are signed in and your administrator access is confirmed.', checking: 'Checking your access…', noRole: 'Your account is active, but no WWW role has been assigned yet.', config: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the Vercel project environment variables.', reset: 'Enter your email and password to continue.', organizations: 'Organizations', create: 'Create organization', orgName: 'Organization name', restaurant: 'Restaurant', supplier: 'Supplier', winemaker: 'Winemaker', creating: 'Creating…', created: 'Organization created.', empty: 'No organizations yet.' },
   ru: { title: 'Wines, Winemakers and Waiters', subtitle: 'Умнее продаём вино', login: 'Вход в систему', email: 'Email', password: 'Пароль', submit: 'Войти', signing: 'Входим…', logout: 'Выйти', admin: 'Администратор WWW', welcome: 'Вы вошли в систему. Права администратора подтверждены.', checking: 'Проверяем ваши права…', noRole: 'Аккаунт активен, но роль в WWW пока не назначена.', config: 'Supabase не настроен. Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в переменные окружения проекта Vercel.', reset: 'Введите email и пароль для входа.', organizations: 'Организации', create: 'Создать организацию', orgName: 'Название организации', restaurant: 'Ресторан', supplier: 'Поставщик', winemaker: 'Винодел', creating: 'Создаём…', created: 'Организация создана.', empty: 'Организаций пока нет.' },
@@ -25,6 +26,9 @@ export default function App() {
   const [orgKind, setOrgKind] = useState<'restaurant' | 'supplier' | 'winemaker'>('restaurant');
   const [orgBusy, setOrgBusy] = useState(false);
   const [managerPhone, setManagerPhone] = useState('');
+  const [managerFirstName, setManagerFirstName] = useState('');
+  const [managerLastName, setManagerLastName] = useState('');
+  const [managersByOrg, setManagersByOrg] = useState<Record<string, ManagerInfo>>({});
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
   const [editingOrgName, setEditingOrgName] = useState('');
   const [managerOrgId, setManagerOrgId] = useState('');
@@ -74,6 +78,41 @@ export default function App() {
     return () => { alive = false; };
   }, [session, isAdmin]);
 
+  useEffect(() => {
+    if (!supabase || !session || isAdmin !== true || organizations.length === 0) {
+      setManagersByOrg({});
+      return;
+    }
+    let alive = true;
+    const restaurantIds = organizations.filter(org => org.kind === 'restaurant').map(org => org.id);
+    if (restaurantIds.length === 0) { setManagersByOrg({}); return; }
+    (async () => {
+      const { data: memberships, error: membershipError } = await supabase
+        .from('memberships').select('organization_id,user_id').eq('role', 'manager').in('organization_id', restaurantIds);
+      if (membershipError || !memberships?.length) {
+        if (alive) setManagersByOrg({});
+        return;
+      }
+      const userIds = memberships.map(item => item.user_id);
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles').select('id,first_name,last_name,phone').in('id', userIds);
+      if (!alive) return;
+      if (profileError || !profiles) { setManagersByOrg({}); return; }
+      const profileMap = new Map(profiles.map(profile => [profile.id, profile]));
+      const next: Record<string, ManagerInfo> = {};
+      memberships.forEach(item => {
+        const profile = profileMap.get(item.user_id);
+        if (profile) next[item.organization_id] = {
+          first_name: profile.first_name ?? '',
+          last_name: profile.last_name ?? '',
+          phone: profile.phone ?? null
+        };
+      });
+      setManagersByOrg(next);
+    })();
+    return () => { alive = false; };
+  }, [session, isAdmin, organizations]);
+
   async function createOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase || !orgName.trim()) return;
@@ -113,12 +152,23 @@ export default function App() {
       setManagerBusy(false);
       return;
     }
+    const { error: profileUpdateError } = await supabase.from('profiles')
+      .update({ first_name: managerFirstName.trim(), last_name: managerLastName.trim() })
+      .eq('id', profile.id);
+    if (profileUpdateError) {
+      setMessage(profileUpdateError.message);
+      setManagerBusy(false);
+      return;
+    }
     const { error: membershipError } = await supabase
       .from('memberships')
       .insert({ organization_id: managerOrgId, user_id: profile.id, role: 'manager' });
     if (membershipError) setMessage(membershipError.message);
     else {
       setManagerPhone('');
+      setManagerFirstName('');
+      setManagerLastName('');
+      setManagersByOrg(current => ({ ...current, [managerOrgId]: { first_name: managerFirstName.trim(), last_name: managerLastName.trim(), phone: normalizedPhone } }));
       setMessage('Менеджер назначен ресторану.');
     }
     setManagerBusy(false);
@@ -204,6 +254,7 @@ export default function App() {
                 <div className="org-main">
                   {editingOrgId === org.id ? <input className="org-rename-input" value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} /> : <b>{org.name}</b>}
                   <small>{org.kind === 'restaurant' ? t.restaurant : org.kind === 'supplier' ? t.supplier : t.winemaker}</small>
+                  {org.kind === 'restaurant' && managersByOrg[org.id] && <div className="manager-card"><b>{[managersByOrg[org.id].first_name, managersByOrg[org.id].last_name].filter(Boolean).join(' ') || 'Менеджер без имени'}</b><small>{managersByOrg[org.id].phone || 'Телефон не указан'}</small></div>}
                 </div>
                 <div className="org-actions">
                   {editingOrgId === org.id ? <>
@@ -223,8 +274,10 @@ export default function App() {
                     <option value="">Выбери ресторан</option>
                     {organizations.filter(org => org.kind === 'restaurant').map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
                   </select></label>
+                  <label>Имя менеджера<input required value={managerFirstName} onChange={e => setManagerFirstName(e.target.value)} placeholder="Имя" /></label>
+                  <label>Фамилия менеджера<input required value={managerLastName} onChange={e => setManagerLastName(e.target.value)} placeholder="Фамилия" /></label>
                   <label>Телефон менеджера<input type="tel" required value={managerPhone} onChange={e => setManagerPhone(e.target.value)} placeholder="+995 5XX XX XX XX" /></label>
-                  <button className="btn primary wide" type="submit" disabled={managerBusy || !managerOrgId || !managerPhone.trim()}>{managerBusy ? 'Назначаем…' : 'Назначить менеджера'}</button>
+                  <button className="btn primary wide" type="submit" disabled={managerBusy || !managerOrgId || !managerPhone.trim() || !managerFirstName.trim() || !managerLastName.trim()}>{managerBusy ? 'Назначаем…' : 'Назначить менеджера'}</button>
                 </form>
               </div>
             </div>
