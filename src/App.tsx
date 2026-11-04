@@ -23,6 +23,7 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [orgName, setOrgName] = useState('');
+  const [orgSearch, setOrgSearch] = useState('');
   const [orgContactFirstName, setOrgContactFirstName] = useState('');
   const [orgContactLastName, setOrgContactLastName] = useState('');
   const [orgContactPhone, setOrgContactPhone] = useState('');
@@ -205,6 +206,15 @@ export default function App() {
     setIsAdmin(null);
   }
 
+  const organizationGroups = [
+    { kind: 'restaurant' as const, title: 'Рестораны', color: 'restaurant', items: organizations.filter(org => org.kind === 'restaurant') },
+    { kind: 'winemaker' as const, title: 'Винодельни', color: 'winemaker', items: organizations.filter(org => org.kind === 'winemaker') },
+    { kind: 'supplier' as const, title: 'Поставщики', color: 'supplier', items: organizations.filter(org => org.kind === 'supplier') }
+  ].map(group => ({
+    ...group,
+    items: group.items.filter(org => [org.name, org.contact_first_name, org.contact_last_name, org.contact_phone].some(value => (value ?? '').toLowerCase().includes(orgSearch.trim().toLowerCase())))
+  }));
+
   return <div className="app auth-app">
     <header>
       <div className="brand"><div className="mark">🍷</div><div><b>WWW</b><small>WINES · WINEMAKERS · WAITERS</small></div></div>
@@ -237,37 +247,53 @@ export default function App() {
                 <label>Type<select value={orgKind} onChange={e => setOrgKind(e.target.value as 'restaurant' | 'supplier' | 'winemaker')}><option value="restaurant">{t.restaurant}</option><option value="supplier">{t.supplier}</option><option value="winemaker">{t.winemaker}</option></select></label>
                 <button className="btn primary wide" type="submit" disabled={orgBusy || !orgName.trim() || !orgContactFirstName.trim() || !orgContactLastName.trim() || !orgContactPhone.trim()}>{orgBusy ? t.creating : t.create}</button>
               </form>
-              <div className="org-list">{organizations.map(org => <div className="org-row org-row-managed" key={org.id}>
-                <div className="org-main">
-                  {editingOrgId === org.id ? <input className="org-rename-input" value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} /> : <b>{org.name}</b>}
-                  <small>{org.kind === 'restaurant' ? t.restaurant : org.kind === 'supplier' ? t.supplier : t.winemaker}</small>
-                  {(org.contact_first_name || org.contact_last_name) && <small>Контакт: {[org.contact_first_name, org.contact_last_name].filter(Boolean).join(' ')}</small>}
-                  {org.contact_phone && <small>Телефон: {org.contact_phone}</small>}
-                  {org.kind === 'restaurant' && <div className="manager-cards">
-                    {(managersByOrg[org.id] ?? []).map(manager => <div className="manager-card" key={manager.id}>
-                      <b>{[manager.first_name, manager.last_name].filter(Boolean).join(' ')}</b>
-                      <small>{manager.phone || 'Телефон не указан'}</small>
+              <div className="org-directory">
+                <div className="org-directory-heading">
+                  <div><b>База организаций</b><small>{organizations.length} активных аккаунтов</small></div>
+                  <input className="org-search" value={orgSearch} onChange={event => setOrgSearch(event.target.value)} placeholder="Поиск по названию, контакту или телефону" />
+                </div>
+                {organizationGroups.map(group => <section className={`org-group ${group.color}`} key={group.kind}>
+                  <div className="org-group-heading">
+                    <span className="org-kind-dot" />
+                    <h3>{group.title}</h3>
+                    <span className="org-count">{group.items.length}</span>
+                  </div>
+                  <div className="org-list">
+                    {group.items.map(org => <div className="org-row org-row-managed" key={org.id}>
+                      <div className="org-main">
+                        {editingOrgId === org.id ? <input className="org-rename-input" value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} /> : <b>{org.name}</b>}
+                        <small>{[org.contact_first_name, org.contact_last_name].filter(Boolean).join(' ') || 'Контакт не указан'}</small>
+                        <small>{org.contact_phone || 'Телефон не указан'}</small>
+                        {org.kind === 'restaurant' && <div className="manager-cards">
+                          {(managersByOrg[org.id] ?? []).map(manager => <div className="manager-card" key={manager.id}>
+                            <b>{[manager.first_name, manager.last_name].filter(Boolean).join(' ')}</b>
+                            <small>{manager.phone || 'Телефон не указан'}</small>
+                          </div>)}
+                          {addingManagerOrgId === org.id && <form className="manager-inline-form" onSubmit={event => createManagerCard(event, org.id)}>
+                            <label>Имя менеджера<input required value={managerFirstName} onChange={event => setManagerFirstName(event.target.value)} placeholder="Имя" /></label>
+                            <label>Фамилия менеджера<input required value={managerLastName} onChange={event => setManagerLastName(event.target.value)} placeholder="Фамилия" /></label>
+                            <label>Телефон менеджера<input type="tel" required value={managerPhone} onChange={event => setManagerPhone(event.target.value)} placeholder="+995 5XX XX XX XX" /></label>
+                            <button className="btn primary" type="submit" disabled={managerBusy || !managerFirstName.trim() || !managerLastName.trim() || !managerPhone.trim()}>{managerBusy ? 'Сохраняем…' : 'Создать карточку'}</button>
+                            <button className="btn quiet" type="button" onClick={() => { setAddingManagerOrgId(null); setManagerFirstName(''); setManagerLastName(''); setManagerPhone(''); }}>Отмена</button>
+                          </form>}
+                        </div>}
+                      </div>
+                      <div className="org-actions">
+                        {editingOrgId === org.id ? <>
+                          <button className="btn primary" type="button" onClick={() => renameOrganization(org.id)}>Сохранить</button>
+                          <button className="btn quiet" type="button" onClick={() => setEditingOrgId(null)}>Отмена</button>
+                        </> : <>
+                          {org.kind === 'restaurant' && <button className="btn primary" type="button" onClick={() => { setAddingManagerOrgId(addingManagerOrgId === org.id ? null : org.id); setManagerFirstName(''); setManagerLastName(''); setManagerPhone(''); }}>+ Менеджер</button>}
+                          <button className="btn quiet" type="button" onClick={() => { setEditingOrgId(org.id); setEditingOrgName(org.name); }}>Переименовать</button>
+                          <button className="btn danger" type="button" onClick={() => archiveOrganization(org)}>Убрать</button>
+                        </>}
+                      </div>
                     </div>)}
-                    {addingManagerOrgId === org.id && <form className="manager-inline-form" onSubmit={event => createManagerCard(event, org.id)}>
-                      <label>Имя менеджера<input required value={managerFirstName} onChange={event => setManagerFirstName(event.target.value)} placeholder="Имя" /></label>
-                      <label>Фамилия менеджера<input required value={managerLastName} onChange={event => setManagerLastName(event.target.value)} placeholder="Фамилия" /></label>
-                      <label>Телефон менеджера<input type="tel" required value={managerPhone} onChange={event => setManagerPhone(event.target.value)} placeholder="+995 5XX XX XX XX" /></label>
-                      <button className="btn primary" type="submit" disabled={managerBusy || !managerFirstName.trim() || !managerLastName.trim() || !managerPhone.trim()}>{managerBusy ? 'Сохраняем…' : 'Создать карточку'}</button>
-                      <button className="btn quiet" type="button" onClick={() => { setAddingManagerOrgId(null); setManagerFirstName(''); setManagerLastName(''); setManagerPhone(''); }}>Отмена</button>
-                    </form>}
-                  </div>}
-                </div>
-                <div className="org-actions">
-                  {editingOrgId === org.id ? <>
-                    <button className="btn primary" type="button" onClick={() => renameOrganization(org.id)}>Сохранить</button>
-                    <button className="btn quiet" type="button" onClick={() => setEditingOrgId(null)}>Отмена</button>
-                  </> : <>
-                    {org.kind === 'restaurant' && <button className="btn primary" type="button" onClick={() => { setAddingManagerOrgId(addingManagerOrgId === org.id ? null : org.id); setManagerFirstName(''); setManagerLastName(''); setManagerPhone(''); }}>+ Менеджер</button>}
-                    <button className="btn quiet" type="button" onClick={() => { setEditingOrgId(org.id); setEditingOrgName(org.name); }}>Переименовать</button>
-                    <button className="btn danger" type="button" onClick={() => archiveOrganization(org)}>Удалить</button>
-                  </>}
-                </div>
-              </div>)}{organizations.length === 0 && <p>{t.empty}</p>}</div>
+                    {group.items.length === 0 && <p className="org-empty">{orgSearch ? 'Ничего не найдено в этой категории.' : 'Пока нет организаций в этой категории.'}</p>}
+                  </div>
+                </section>)}
+                {organizations.length === 0 && <p>{t.empty}</p>}
+              </div>
 
             </div>
           </> : <><h2>{t.login}</h2><p>{t.noRole}</p></>}
