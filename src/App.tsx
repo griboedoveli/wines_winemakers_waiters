@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 type Lang = 'en' | 'ru' | 'ka';
-type Organization = { id: string; name: string; kind: 'restaurant' | 'supplier' | 'winemaker'; created_at: string };
+type Organization = { id: string; name: string; kind: 'restaurant' | 'supplier' | 'winemaker'; created_at: string; archived_at?: string | null };
 const copy = {
   en: { title: 'Wines, Winemakers and Waiters', subtitle: 'A better way to sell wine', login: 'Sign in', email: 'Email', password: 'Password', submit: 'Sign in', signing: 'Signing in…', logout: 'Sign out', admin: 'WWW administrator', welcome: 'You are signed in and your administrator access is confirmed.', checking: 'Checking your access…', noRole: 'Your account is active, but no WWW role has been assigned yet.', config: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the Vercel project environment variables.', reset: 'Enter your email and password to continue.', organizations: 'Organizations', create: 'Create organization', orgName: 'Organization name', restaurant: 'Restaurant', supplier: 'Supplier', winemaker: 'Winemaker', creating: 'Creating…', created: 'Organization created.', empty: 'No organizations yet.' },
   ru: { title: 'Wines, Winemakers and Waiters', subtitle: 'Умнее продаём вино', login: 'Вход в систему', email: 'Email', password: 'Пароль', submit: 'Войти', signing: 'Входим…', logout: 'Выйти', admin: 'Администратор WWW', welcome: 'Вы вошли в систему. Права администратора подтверждены.', checking: 'Проверяем ваши права…', noRole: 'Аккаунт активен, но роль в WWW пока не назначена.', config: 'Supabase не настроен. Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в переменные окружения проекта Vercel.', reset: 'Введите email и пароль для входа.', organizations: 'Организации', create: 'Создать организацию', orgName: 'Название организации', restaurant: 'Ресторан', supplier: 'Поставщик', winemaker: 'Винодел', creating: 'Создаём…', created: 'Организация создана.', empty: 'Организаций пока нет.' },
@@ -24,7 +24,9 @@ export default function App() {
   const [orgName, setOrgName] = useState('');
   const [orgKind, setOrgKind] = useState<'restaurant' | 'supplier' | 'winemaker'>('restaurant');
   const [orgBusy, setOrgBusy] = useState(false);
-  const [managerEmail, setManagerEmail] = useState('');
+  const [managerPhone, setManagerPhone] = useState('');
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
+  const [editingOrgName, setEditingOrgName] = useState('');
   const [managerOrgId, setManagerOrgId] = useState('');
   const [managerBusy, setManagerBusy] = useState(false);
   const t = copy[lang];
@@ -63,7 +65,7 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !session || isAdmin !== true) return;
     let alive = true;
-    supabase.from('organizations').select('id,name,kind,created_at').order('created_at', { ascending: false })
+    supabase.from('organizations').select('id,name,kind,created_at,archived_at').is('archived_at', null).order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (!alive) return;
         if (error) setMessage(error.message);
@@ -79,7 +81,7 @@ export default function App() {
     setMessage('');
     const { data, error } = await supabase.from('organizations')
       .insert({ name: orgName.trim(), kind: orgKind })
-      .select('id,name,kind,created_at')
+      .select('id,name,kind,created_at,archived_at')
       .single();
     if (error) setMessage(error.message);
     else if (data) {
@@ -92,14 +94,14 @@ export default function App() {
 
   async function assignManager(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !managerEmail.trim() || !managerOrgId) return;
+    if (!supabase || !managerPhone.trim() || !managerOrgId) return;
     setManagerBusy(true);
     setMessage('');
-    const normalizedEmail = managerEmail.trim().toLowerCase();
+    const normalizedPhone = managerPhone.trim().replace(/[\\s()-]/g, '');
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id,email')
-      .ilike('email', normalizedEmail)
+      .select('id,phone')
+      .eq('phone', normalizedPhone)
       .maybeSingle();
     if (profileError) {
       setMessage(profileError.message);
@@ -107,7 +109,7 @@ export default function App() {
       return;
     }
     if (!profile) {
-      setMessage('Аккаунт с таким email не найден. Сначала создай пользователя в Supabase → Authentication → Users.');
+      setMessage('Аккаунт с таким телефоном не найден. Сначала создай пользователя в Supabase → Authentication → Users и укажи этот номер в формате +995XXXXXXXXX.');
       setManagerBusy(false);
       return;
     }
@@ -116,10 +118,40 @@ export default function App() {
       .insert({ organization_id: managerOrgId, user_id: profile.id, role: 'manager' });
     if (membershipError) setMessage(membershipError.message);
     else {
-      setManagerEmail('');
+      setManagerPhone('');
       setMessage('Менеджер назначен ресторану.');
     }
     setManagerBusy(false);
+  }
+
+  async function renameOrganization(orgId: string) {
+    if (!supabase || !editingOrgName.trim()) return;
+    const { data, error } = await supabase.from('organizations')
+      .update({ name: editingOrgName.trim() })
+      .eq('id', orgId)
+      .select('id,name,kind,created_at,archived_at')
+      .single();
+    if (error) setMessage(error.message);
+    else {
+      setOrganizations(current => current.map(org => org.id === orgId ? data as Organization : org));
+      setEditingOrgId(null);
+      setEditingOrgName('');
+      setMessage('Название организации обновлено.');
+    }
+  }
+
+  async function archiveOrganization(org: Organization) {
+    if (!supabase) return;
+    const confirmed = window.confirm(`Убрать «${org.name}» из активных организаций? История продаж и выплат сохранится.`);
+    if (!confirmed) return;
+    const { error } = await supabase.from('organizations')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', org.id);
+    if (error) setMessage(error.message);
+    else {
+      setOrganizations(current => current.filter(item => item.id !== org.id));
+      setMessage('Организация удалена из активного списка. История сохранена.');
+    }
   }
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
@@ -168,17 +200,31 @@ export default function App() {
                 <label>Type<select value={orgKind} onChange={e => setOrgKind(e.target.value as 'restaurant' | 'supplier' | 'winemaker')}><option value="restaurant">{t.restaurant}</option><option value="supplier">{t.supplier}</option><option value="winemaker">{t.winemaker}</option></select></label>
                 <button className="btn primary wide" type="submit" disabled={orgBusy || !orgName.trim()}>{orgBusy ? t.creating : t.create}</button>
               </form>
-              <div className="org-list">{organizations.map(org => <div className="org-row" key={org.id}><div><b>{org.name}</b><small>{org.kind === 'restaurant' ? t.restaurant : org.kind === 'supplier' ? t.supplier : t.winemaker}</small></div><span>{org.kind === 'restaurant' ? '🍽️' : org.kind === 'supplier' ? '📦' : '🍇'}</span></div>)}{organizations.length === 0 && <p>{t.empty}</p>}</div>
+              <div className="org-list">{organizations.map(org => <div className="org-row org-row-managed" key={org.id}>
+                <div className="org-main">
+                  {editingOrgId === org.id ? <input className="org-rename-input" value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} /> : <b>{org.name}</b>}
+                  <small>{org.kind === 'restaurant' ? t.restaurant : org.kind === 'supplier' ? t.supplier : t.winemaker}</small>
+                </div>
+                <div className="org-actions">
+                  {editingOrgId === org.id ? <>
+                    <button className="btn primary" type="button" onClick={() => renameOrganization(org.id)}>Сохранить</button>
+                    <button className="btn quiet" type="button" onClick={() => setEditingOrgId(null)}>Отмена</button>
+                  </> : <>
+                    <button className="btn quiet" type="button" onClick={() => { setEditingOrgId(org.id); setEditingOrgName(org.name); }}>Переименовать</button>
+                    <button className="btn danger" type="button" onClick={() => archiveOrganization(org)}>Удалить</button>
+                  </>}
+                </div>
+              </div>)}{organizations.length === 0 && <p>{t.empty}</p>}</div>
               <div className="manager-assignment">
                 <h2>Назначить менеджера ресторана</h2>
-                <p>Сначала создай аккаунт пользователя в Supabase → Authentication → Users. Здесь привяжи его к ресторану по email.</p>
+                <p>Сначала создай пользователя в Supabase → Authentication → Users и укажи номер телефона. Затем привяжи его к ресторану по этому номеру.</p>
                 <form onSubmit={assignManager}>
                   <label>Ресторан<select required value={managerOrgId} onChange={e => setManagerOrgId(e.target.value)}>
                     <option value="">Выбери ресторан</option>
                     {organizations.filter(org => org.kind === 'restaurant').map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
                   </select></label>
-                  <label>Email менеджера<input type="email" required value={managerEmail} onChange={e => setManagerEmail(e.target.value)} placeholder="manager@restaurant.com" /></label>
-                  <button className="btn primary wide" type="submit" disabled={managerBusy || !managerOrgId || !managerEmail.trim()}>{managerBusy ? 'Назначаем…' : 'Назначить менеджера'}</button>
+                  <label>Телефон менеджера<input type="tel" required value={managerPhone} onChange={e => setManagerPhone(e.target.value)} placeholder="+995 5XX XX XX XX" /></label>
+                  <button className="btn primary wide" type="submit" disabled={managerBusy || !managerOrgId || !managerPhone.trim()}>{managerBusy ? 'Назначаем…' : 'Назначить менеджера'}</button>
                 </form>
               </div>
             </div>
