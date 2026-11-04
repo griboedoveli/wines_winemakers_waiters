@@ -180,7 +180,7 @@ export default function App() {
         name: editingOrgName.trim(),
         contact_first_name: editingContactFirstName.trim(),
         contact_last_name: editingContactLastName.trim(),
-        contact_phone: editingContactPhone.trim().replace(/[\\s()-]/g, '')
+        contact_phone: editingContactPhone.trim().replace(/[\s()-]/g, '')
       })
       .eq('id', orgId)
       .select('id,name,kind,contact_first_name,contact_last_name,contact_phone,created_at,archived_at')
@@ -220,7 +220,7 @@ export default function App() {
     event.preventDefault();
     if (!supabase) return;
     const phone = normalizePhone(authPhone);
-    if (!/^\\+[1-9]\\d{7,14}$/.test(phone)) {
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
       setMessage('Введите номер в международном формате, например +995 555 12 34 56.');
       return;
     }
