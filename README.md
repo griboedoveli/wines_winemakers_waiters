@@ -5,11 +5,7 @@ Mobile-first Telegram Mini App front-end MVP.
 ## Demo
 - Waiter, manager and supplier views (role switcher is demo-only).
 - English, Russian and Georgian UI.
-- Wine offers with per-bottle reward amounts.
-- Waiter submits sale with receipt reference.
-- Manager approves or rejects pending sales.
-- Supplier can add demo offers.
-- Telegram WebApp SDK ready/expand integration.
+- Wine offers, per-bottle rewards, sale submission and manager review.
 
 ## Local run
 `npm install` then `npm run dev`. Production check: `npm run build`.
@@ -17,7 +13,15 @@ Mobile-first Telegram Mini App front-end MVP.
 ## Vercel
 Framework Vite; build command `npm run build`; output directory `dist`.
 
-## Limitations
-This is a front-end demo. Data is in memory and resets on refresh. There is no real Telegram authentication, persistence, permission enforcement, supplier fund reservation, notification, or payout. Do not use for real financial transactions.
+## Supabase setup
+1. Create a Supabase project.
+2. Run `supabase/migrations/0001_initial_schema.sql` in the Supabase SQL Editor.
+3. In Vercel → Project Settings → Environment Variables, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (publishable/anon key only).
+4. Redeploy.
 
-Production work: Supabase + RLS, server-side Telegram initData validation, restaurant membership, atomic approval and immutable bonus ledger, payout workflow.
+Never put the Supabase `service_role` key in Vite or client-side environment variables.
+
+## Security status
+The initial schema defines organizations, profiles, memberships, supplier wine offers, restaurant offer links, sales and a bonus ledger with row-level security. It is a foundation, not a production-ready payout system.
+
+Before live use we must add trusted user onboarding/invitations, server-side Telegram initData validation, atomic manager approval plus ledger posting, supplier-fund reservation and payout reconciliation. Do not process real-money payouts with this MVP.
