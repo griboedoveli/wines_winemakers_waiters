@@ -36,6 +36,9 @@ export default function App() {
   const [addingManagerOrgId, setAddingManagerOrgId] = useState<string | null>(null);
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
   const [editingOrgName, setEditingOrgName] = useState('');
+  const [editingContactFirstName, setEditingContactFirstName] = useState('');
+  const [editingContactLastName, setEditingContactLastName] = useState('');
+  const [editingContactPhone, setEditingContactPhone] = useState('');
   const [managerOrgId, setManagerOrgId] = useState('');
   const [managerBusy, setManagerBusy] = useState(false);
   const t = copy[lang];
@@ -159,10 +162,16 @@ export default function App() {
     setManagerBusy(false);
   }
 
-  async function renameOrganization(orgId: string) {
+  async function saveOrganization(orgId: string) {
     if (!supabase || !editingOrgName.trim()) return;
+    setOrgBusy(true);
     const { data, error } = await supabase.from('organizations')
-      .update({ name: editingOrgName.trim() })
+      .update({
+        name: editingOrgName.trim(),
+        contact_first_name: editingContactFirstName.trim(),
+        contact_last_name: editingContactLastName.trim(),
+        contact_phone: editingContactPhone.trim().replace(/[\\s()-]/g, '')
+      })
       .eq('id', orgId)
       .select('id,name,kind,contact_first_name,contact_last_name,contact_phone,created_at,archived_at')
       .single();
@@ -171,8 +180,12 @@ export default function App() {
       setOrganizations(current => current.map(org => org.id === orgId ? data as Organization : org));
       setEditingOrgId(null);
       setEditingOrgName('');
-      setMessage('Название организации обновлено.');
+      setEditingContactFirstName('');
+      setEditingContactLastName('');
+      setEditingContactPhone('');
+      setMessage('Данные организации обновлены.');
     }
+    setOrgBusy(false);
   }
 
   async function archiveOrganization(org: Organization) {
@@ -261,9 +274,14 @@ export default function App() {
                   <div className="org-list">
                     {group.items.map(org => <div className="org-row org-row-managed" key={org.id}>
                       <div className="org-main">
-                        {editingOrgId === org.id ? <input className="org-rename-input" value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} /> : <b>{org.name}</b>}
-                        <small>{[org.contact_first_name, org.contact_last_name].filter(Boolean).join(' ') || 'Контакт не указан'}</small>
-                        <small>{org.contact_phone || 'Телефон не указан'}</small>
+                        {editingOrgId === org.id ? <div className="org-edit-form">
+                          <label>Название<input value={editingOrgName} onChange={e => setEditingOrgName(e.target.value)} required /></label>
+                          <label>Имя контактного лица<input value={editingContactFirstName} onChange={e => setEditingContactFirstName(e.target.value)} /></label>
+                          <label>Фамилия контактного лица<input value={editingContactLastName} onChange={e => setEditingContactLastName(e.target.value)} /></label>
+                          <label>Телефон<input type="tel" value={editingContactPhone} onChange={e => setEditingContactPhone(e.target.value)} placeholder="+995 5XX XX XX XX" /></label>
+                        </div> : <><b>{org.name}</b>
+                          <small>{[org.contact_first_name, org.contact_last_name].filter(Boolean).join(' ') || 'Контакт не указан'}</small>
+                          <small>{org.contact_phone || 'Телефон не указан'}</small></>}
                         {org.kind === 'restaurant' && <div className="manager-cards">
                           {(managersByOrg[org.id] ?? []).map(manager => <div className="manager-card" key={manager.id}>
                             <b>{[manager.first_name, manager.last_name].filter(Boolean).join(' ')}</b>
@@ -280,11 +298,11 @@ export default function App() {
                       </div>
                       <div className="org-actions">
                         {editingOrgId === org.id ? <>
-                          <button className="btn primary" type="button" onClick={() => renameOrganization(org.id)}>Сохранить</button>
-                          <button className="btn quiet" type="button" onClick={() => setEditingOrgId(null)}>Отмена</button>
+                          <button className="btn primary" type="button" disabled={orgBusy || !editingOrgName.trim()} onClick={() => saveOrganization(org.id)}>{orgBusy ? 'Сохраняем…' : 'Сохранить'}</button>
+                          <button className="btn quiet" type="button" onClick={() => { setEditingOrgId(null); setEditingOrgName(''); setEditingContactFirstName(''); setEditingContactLastName(''); setEditingContactPhone(''); }}>Отмена</button>
                         </> : <>
                           {org.kind === 'restaurant' && <button className="btn primary" type="button" onClick={() => { setAddingManagerOrgId(addingManagerOrgId === org.id ? null : org.id); setManagerFirstName(''); setManagerLastName(''); setManagerPhone(''); }}>+ Менеджер</button>}
-                          <button className="btn quiet" type="button" onClick={() => { setEditingOrgId(org.id); setEditingOrgName(org.name); }}>Переименовать</button>
+                          <button className="btn quiet" type="button" onClick={() => { setEditingOrgId(org.id); setEditingOrgName(org.name); setEditingContactFirstName(org.contact_first_name ?? ''); setEditingContactLastName(org.contact_last_name ?? ''); setEditingContactPhone(org.contact_phone ?? ''); }}>Редактировать</button>
                           <button className="btn danger" type="button" onClick={() => archiveOrganization(org)}>Убрать</button>
                         </>}
                       </div>
