@@ -97,7 +97,7 @@ export default function App() {
     if (!supabase || !managerPhone.trim() || !managerOrgId) return;
     setManagerBusy(true);
     setMessage('');
-    const normalizedPhone = managerPhone.trim().replace(/[\\s()-]/g, '');
+    const normalizedPhone = managerPhone.trim().replace(/[\s()-]/g, '');
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id,phone')
