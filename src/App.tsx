@@ -113,7 +113,7 @@ export default function App() {
     setOrgBusy(true);
     setMessage('');
     const { data, error } = await supabase.from('organizations')
-      .insert({ name: orgName.trim(), kind: orgKind, contact_first_name: orgContactFirstName.trim(), contact_last_name: orgContactLastName.trim(), contact_phone: orgContactPhone.trim().replace(/[\\s()-]/g, '') })
+      .insert({ name: orgName.trim(), kind: orgKind, contact_first_name: orgContactFirstName.trim(), contact_last_name: orgContactLastName.trim(), contact_phone: orgContactPhone.trim().replace(/[\s()-]/g, '') })
       .select('id,name,kind,contact_first_name,contact_last_name,contact_phone,created_at,archived_at')
       .single();
     if (error) setMessage(error.message);
