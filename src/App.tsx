@@ -337,7 +337,7 @@ export default function App() {
 
   return <div className="app auth-app">
     <header>
-      <div className="brand"><div className="mark">🍷</div><div><b>WWW</b><small>WINES · WINEMAKERS · WAITERS</small></div></div>
+      <button className="brand brand-home" type="button" aria-label="На стартовую страницу" onClick={() => { setPublicView("home"); setShowEmailLogin(false); setOtpSent(false); setMessage(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}><div className="mark">🍷</div><div><b>WWW</b><small>WINES · WINEMAKERS · WAITERS</small></div></button>
       <select aria-label="Language" value={lang} onChange={e => setLang(e.target.value as Lang)}><option value="en">EN</option><option value="ru">RU</option><option value="ka">KA</option></select>
     </header>
     <main>
