@@ -282,6 +282,43 @@ export default function App() {
     setSubmitting(false);
   }
 
+  async function registerWithEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase) return;
+    setAuthFlowBusy(true);
+    setMessage('');
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { emailRedirectTo: window.location.origin }
+    });
+    if (error) setMessage(error.message);
+    else if (data.session) {
+      setSession(data.session);
+      setMessage('Email подтверждён. Заполните данные организации.');
+    } else {
+      setMessage('Письмо для подтверждения отправлено на ' + email.trim() + '. Перейдите по ссылке из письма, чтобы продолжить регистрацию.');
+    }
+    setAuthFlowBusy(false);
+  }
+
+  async function completeOrganizationRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !session) return;
+    setAuthFlowBusy(true);
+    setMessage('');
+    const { error } = await supabase.rpc('register_organization_email', {
+      p_name: registrationCompany.trim(),
+      p_kind: registrationKind,
+      p_first_name: registrationFirstName.trim(),
+      p_last_name: registrationLastName.trim(),
+      p_phone: authPhone.trim() || null
+    });
+    if (error) setMessage('Не удалось завершить регистрацию: ' + error.message);
+    else setMessage('Регистрация завершена. Организация привязана к вашему аккаунту.');
+    setAuthFlowBusy(false);
+  }
+
   async function signOut() {
     if (!supabase) return;
     const { error } = await supabase.auth.signOut();
@@ -319,49 +356,22 @@ export default function App() {
           </> : publicView === 'signin' ? <>
             <button className="text-link back-link" type="button" onClick={() => { setPublicView('home'); setOtpSent(false); setShowEmailLogin(false); setMessage(''); }}>← На главную</button>
             <h2>Вход в WWW</h2>
-            {!showEmailLogin ? <>
-              {!otpSent ? <form onSubmit={requestPhoneCode}>
-                <p>Введите номер телефона. Мы отправим SMS-код для входа.</p>
-                <label>Контактный номер<input type="tel" required value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+995 555 12 34 56" /></label>
-                <button className="btn primary wide" type="submit" disabled={authFlowBusy}>{authFlowBusy ? 'Отправляем…' : 'Получить SMS-код'}</button>
-              </form> : <form onSubmit={verifyPhoneCode}>
-                <p>Код отправлен на {authPhone}.</p>
-                <label>Код из SMS<input inputMode="numeric" autoComplete="one-time-code" required value={otpCode} onChange={e => setOtpCode(e.target.value)} placeholder="123456" /></label>
-                <button className="btn primary wide" type="submit" disabled={authFlowBusy || otpCode.trim().length < 4}>{authFlowBusy ? 'Проверяем…' : 'Подтвердить и войти'}</button>
-                <button className="btn quiet wide" type="button" onClick={() => { setOtpSent(false); setOtpCode(''); }}>Изменить номер</button>
-              </form>}
-              <button className="text-link" type="button" onClick={() => { setShowEmailLogin(true); setMessage(''); }}>Вход по email и паролю</button>
-            </> : <form onSubmit={signIn}>
+            <form onSubmit={signIn}>
               <p>Вход администратора.</p>
               <label>{t.email}<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
               <label>{t.password}<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" /></label>
               <button className="btn primary wide" type="submit" disabled={submitting}>{submitting ? t.signing : t.submit}</button>
-              <button className="text-link" type="button" onClick={() => setShowEmailLogin(false)}>Войти по телефону</button>
-            </form>}
+            </form>
           </> : <>
-            <button className="text-link back-link" type="button" onClick={() => { setPublicView('home'); setOtpSent(false); setMessage(''); }}>← На главную</button>
+            <button className="text-link back-link" type="button" onClick={() => { setPublicView('home'); setMessage(''); }}>← На главную</button>
             <h2>Регистрация организации</h2>
-            {!otpSent ? <>
-              <p>Выберите тип организации и заполните контактные данные.</p>
-              <div className="registration-types">
-                <button type="button" className={registrationKind === 'restaurant' ? 'registration-type selected' : 'registration-type'} onClick={() => setRegistrationKind('restaurant')}><b>Ресторан</b><small>Restaurant</small></button>
-                <button type="button" className={registrationKind === 'winemaker' ? 'registration-type selected' : 'registration-type'} onClick={() => setRegistrationKind('winemaker')}><b>Винодельня</b><small>Winemaker</small></button>
-                <button type="button" className={registrationKind === 'supplier' ? 'registration-type selected' : 'registration-type'} onClick={() => setRegistrationKind('supplier')}><b>Дистрибьютор</b><small>Distributor</small></button>
-              </div>
-              <form onSubmit={requestPhoneCode}>
-                <label>Название компании<input required value={registrationCompany} onChange={e => setRegistrationCompany(e.target.value)} placeholder="Название организации" /></label>
-                <label>Имя<input required value={registrationFirstName} onChange={e => setRegistrationFirstName(e.target.value)} placeholder="Имя" /></label>
-                <label>Фамилия<input required value={registrationLastName} onChange={e => setRegistrationLastName(e.target.value)} placeholder="Фамилия" /></label>
-                <label>Контактный номер<input type="tel" required value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+995 555 12 34 56" /></label>
-                <button className="btn primary wide" type="submit" disabled={authFlowBusy || !registrationCompany.trim() || !registrationFirstName.trim() || !registrationLastName.trim() || !authPhone.trim()}>{authFlowBusy ? 'Отправляем…' : 'Подтвердить номер по SMS'}</button>
-              </form>
-            </> : <form onSubmit={verifyPhoneCode}>
-              <p>Мы отправили SMS с кодом на {authPhone}. После подтверждения создадим аккаунт организации.</p>
-              <label>Код из SMS<input inputMode="numeric" autoComplete="one-time-code" required value={otpCode} onChange={e => setOtpCode(e.target.value)} placeholder="123456" /></label>
-              <button className="btn primary wide" type="submit" disabled={authFlowBusy || otpCode.trim().length < 4}>{authFlowBusy ? 'Проверяем…' : 'Подтвердить и зарегистрироваться'}</button>
-              <button className="btn quiet wide" type="button" onClick={() => { setOtpSent(false); setOtpCode(''); }}>Изменить данные</button>
-            </form>}
-          </>}
+            <p>Создайте аккаунт по email и паролю. После подтверждения почты заполните данные компании.</p>
+            <form onSubmit={registerWithEmail}>
+              <label>Email<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
+              <label>Пароль<input type="password" autoComplete="new-password" minLength={8} required value={password} onChange={e => setPassword(e.target.value)} placeholder="Минимум 8 символов" /></label>
+              <button className="btn primary wide" type="submit" disabled={authFlowBusy || !email.trim() || password.length < 8}>{authFlowBusy ? 'Создаём аккаунт…' : 'Зарегистрироваться'}</button>
+            </form>
+          </>          </>}
         </section> :
         <section className="auth-panel">
           <div className="auth-status"><span className="status-dot" />{session.user.email}</div>
@@ -431,7 +441,20 @@ export default function App() {
               </div>
 
             </div>
-          </> : <><h2>{t.login}</h2><p>{t.noRole}</p></>}
+          </> : <><h2>Завершение регистрации</h2><p>Аккаунт подтверждён. Укажите данные организации, чтобы создать рабочий профиль WWW.</p>
+            <form onSubmit={completeOrganizationRegistration}>
+              <div className="registration-types">
+                <button type="button" className={registrationKind === 'restaurant' ? 'registration-type selected' : 'registration-type'} onClick={() => setRegistrationKind('restaurant')}><b>Ресторан</b></button>
+                <button type="button" className={registrationKind === 'winemaker' ? 'registration-type selected' : 'registration-type'} onClick={() => setRegistrationKind('winemaker')}><b>Винодельня</b></button>
+                <button type="button" className={registrationKind === 'supplier' ? 'registration-type selected' : 'registration-type'} onClick={() => setRegistrationKind('supplier')}><b>Дистрибьютор</b></button>
+              </div>
+              <label>Название компании<input required value={registrationCompany} onChange={e => setRegistrationCompany(e.target.value)} placeholder="Название организации" /></label>
+              <label>Имя<input required value={registrationFirstName} onChange={e => setRegistrationFirstName(e.target.value)} placeholder="Имя" /></label>
+              <label>Фамилия<input required value={registrationLastName} onChange={e => setRegistrationLastName(e.target.value)} placeholder="Фамилия" /></label>
+              <label>Телефон (необязательно)<input type="tel" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+995 555 12 34 56" /></label>
+              <button className="btn primary wide" type="submit" disabled={authFlowBusy || !registrationCompany.trim() || !registrationFirstName.trim() || !registrationLastName.trim()}>{authFlowBusy ? 'Сохраняем…' : 'Создать организацию'}</button>
+            </form>
+          </>}
           <button className="btn quiet wide" onClick={signOut}>{t.logout}</button>
         </section>
       }
