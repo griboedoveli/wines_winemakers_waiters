@@ -1,13 +1,98 @@
-import { useMemo, useState } from 'react';
-type Role='waiter'|'manager'|'supplier'|'developer'; type Lang='en'|'ru'|'ka';
-type Offer={id:number;name:string;producer:string;region:string;bonus:number;price:number};
-type Sale={id:number;wine:string;waiter:string;bonus:number;receipt:string;status:'pending'|'approved'|'rejected';commission?:number};
-const words={en:{waiter:'Waiter',manager:'Manager',supplier:'Supplier',developer:'Developer',commission:'WWW commission',accrued:'Accrued to WWW',restaurantPays:'Paid by restaurant · 10% of waiter bonus',feeRate:'Commission rate',offers:'Wine offers',earned:'Earned rewards',register:'Register sale',receipt:'Receipt number',send:'Send to manager',pending:'Pending approval',approve:'Approve',reject:'Reject',portfolio:'Your portfolio',fund:'Bonus fund',empty:'Nothing here yet',price:'Menu price',recent:'Recent sales'},ru:{waiter:'Официант',manager:'Менеджер',supplier:'Поставщик',developer:'Разработчик',commission:'Комиссия WWW',accrued:'Начислено WWW',restaurantPays:'Платит ресторан · 10% от бонуса официанта',feeRate:'Ставка комиссии',offers:'Винные предложения',earned:'Заработано бонусов',register:'Продать бутылку',receipt:'Номер чека',send:'Отправить менеджеру',pending:'Ожидают подтверждения',approve:'Подтвердить',reject:'Отклонить',portfolio:'Ваш ассортимент',fund:'Бонусный фонд',empty:'Пока ничего нет',price:'Цена в меню',recent:'Последние продажи'},ka:{waiter:'ოფიციანტი',manager:'მენეჯერი',supplier:'მომწოდებელი',developer:'დეველოპერი',commission:'WWW საკომისიო',accrued:'WWW-ს დარიცხული',restaurantPays:'იხდის რესტორანი · ოფიციანტის ბონუსის 10%',feeRate:'საკომისიო განაკვეთი',offers:'ღვინის შეთავაზებები',earned:'მიღებული ბონუსი',register:'ბოთლის გაყიდვა',receipt:'ქვითრის ნომერი',send:'მენეჯერთან გაგზავნა',pending:'დადასტურების მოლოდინში',approve:'დადასტურება',reject:'უარყოფა',portfolio:'თქვენი პორტფელი',fund:'ბონუსის ფონდი',empty:'ჯერ არაფერია',price:'მენიუს ფასი',recent:'ბოლო გაყიდვები'}};
-const seed:Offer[]=[{id:1,name:'Saperavi Qvevri 2022',producer:'Orgo Winery',region:'Kakheti · Georgia',bonus:12,price:68},{id:2,name:'Chinuri Pet-Nat 2023',producer:'Ise Winery',region:'Kartli · Georgia',bonus:15,price:74},{id:3,name:'Tsolikouri 2023',producer:'Baia’s Wine',region:'Imereti · Georgia',bonus:10,price:62},{id:4,name:'Tavkveri Rosé 2023',producer:'Gotsa Family Wines',region:'Kartli · Georgia',bonus:8,price:59}];
-export default function App(){const [role,setRole]=useState<Role>('waiter');const [lang,setLang]=useState<Lang>('en');const [offers,setOffers]=useState(seed);const [sales,setSales]=useState<Sale[]>([{id:1,wine:'Saperavi Qvevri 2022',waiter:'Nika K.',bonus:12,receipt:'R-1042',status:'pending'},{id:2,wine:'Tsolikouri 2023',waiter:'Mariam G.',bonus:10,receipt:'R-1038',status:'approved',commission:1}]);const [chosen,setChosen]=useState<Offer|null>(null);const [receipt,setReceipt]=useState('');const [query,setQuery]=useState('');const [notice,setNotice]=useState('');const commissionRate=10;const t=words[lang];const tg=(window as Window&{Telegram?:{WebApp?:{ready:()=>void;expand:()=>void}}}).Telegram?.WebApp;tg?.ready();tg?.expand();const filtered=useMemo(()=>offers.filter(o=>(o.name+' '+o.producer).toLowerCase().includes(query.toLowerCase())),[offers,query]);const earned=sales.filter(s=>s.waiter==='You'&&s.status==='approved').reduce((n,s)=>n+s.bonus,0);function submit(){if(!chosen||!receipt.trim())return;setSales([{id:Date.now(),wine:chosen.name,waiter:'You',bonus:chosen.bonus,receipt:receipt.trim(),status:'pending'},...sales]);setChosen(null);setReceipt('');setNotice('Sale submitted for manager approval');}function review(id:number,status:'approved'|'rejected'){setSales(s=>s.map(x=>{if(x.id!==id)return x;return {...x,status,commission:status==='approved'?Number((x.bonus*commissionRate/100).toFixed(2)):0};}));}function add(){const name=prompt('Wine name');if(!name)return;const bonus=Number(prompt('Waiter bonus (GEL)','10')||10);setOffers(o=>[{id:Date.now(),name,producer:'New producer',region:'Georgia',bonus,price:65},...o]);}
-return <div className="app"><header><div className="brand"><div className="mark">🍷</div><div><b>WWW</b><small>WINES · WINEMAKERS · WAITERS</small></div></div><select value={lang} onChange={e=>setLang(e.target.value as Lang)}><option value="en">EN</option><option value="ru">RU</option><option value="ka">KA</option></select></header><main><div className="eyebrow">WINE SALES INCENTIVES</div><h1>Wines, Winemakers<br/>and Waiters</h1><p className="sub">A better way to sell wine</p><nav className="roles">{(['waiter','manager','supplier','developer'] as Role[]).map(r=><button className={role===r?'on':''} key={r} onClick={()=>setRole(r)}>{t[r]}</button>)}</nav>
-{role==='waiter'&&<><section className="hero"><span>{t.earned}</span><strong>{earned} GEL</strong><small>{sales.filter(s=>s.waiter==='You').length} sales</small></section><div className="heading"><h2>{t.offers}</h2><small>{offers.length} ACTIVE</small></div><input className="search" placeholder="Search wine or producer" value={query} onChange={e=>setQuery(e.target.value)}/><div className="grid">{filtered.map(o=><article className="card" key={o.id}><div className="bottle">WWW</div><div className="body"><small>{o.producer} · {o.region}</small><h3>{o.name}</h3><div className="meta"><span>{t.price}: {o.price} GEL</span><b>+{o.bonus} GEL</b></div><button className="btn primary" onClick={()=>setChosen(o)}>{t.register}</button></div></article>)}</div><div className="heading"><h2>{t.recent}</h2></div>{sales.filter(s=>s.waiter==='You').map(s=><div className="sale" key={s.id}><div><b>{s.wine}</b><small>{s.receipt} · {s.status}</small></div><strong>+{s.bonus} GEL</strong></div>)}{!sales.some(s=>s.waiter==='You')&&<p className="muted">{t.empty}</p>}</>}
-{role==='manager'&&<><div className="metric"><span>{t.pending}</span><strong>{sales.filter(s=>s.status==='pending').length}</strong></div>{sales.filter(s=>s.status==='pending').map(s=><article className="sale" key={s.id}><div><b>{s.wine}</b><small>{s.waiter} · {s.receipt}</small></div><strong>+{s.bonus} GEL</strong><div className="actions"><button className="btn primary" onClick={()=>review(s.id,'approved')}>{t.approve}</button><button className="btn quiet" onClick={()=>review(s.id,'rejected')}>{t.reject}</button></div></article>)}</>}
-{role==='developer'&&<><div className="hero"><span>{t.accrued}</span><strong>{sales.filter(s=>s.status==='approved').reduce((n,s)=>n+(s.commission??0),0).toFixed(2)} GEL</strong><small>{t.restaurantPays}</small></div><div className="metric"><span>{t.feeRate}</span><strong>{commissionRate}%</strong></div><div className="heading"><h2>{t.commission}</h2><small>CONFIRMED SALES ONLY</small></div>{sales.filter(s=>s.status==='approved').map(s=><div className="sale" key={s.id}><div><b>{s.wine}</b><small>{s.receipt} · {s.waiter} · bonus {s.bonus} GEL</small></div><strong>+{(s.commission??0).toFixed(2)} GEL</strong></div>)}{!sales.some(s=>s.status==='approved')&&<p className="muted">{t.empty}</p>}</>}
-{role==='supplier'&&<><div className="metric"><span>{t.fund}</span><strong>1,000 GEL</strong></div><div className="heading"><h2>{t.portfolio}</h2><button className="btn quiet" onClick={add}>＋ Add wine</button></div>{offers.map(o=><div className="supplier" key={o.id}><div><b>{o.name}</b><small>{o.producer} · {o.region}</small></div><strong>+{o.bonus} GEL</strong></div>)}</>}
-</main>{chosen&&<div className="backdrop"><div className="modal"><button className="close" onClick={()=>setChosen(null)}>×</button><div className="bottle">WWW</div><h2>{chosen.name}</h2><p>{chosen.producer}</p><p className="reward">Your bonus: <b>+{chosen.bonus} GEL</b></p><label>{t.receipt}<input value={receipt} onChange={e=>setReceipt(e.target.value)} placeholder="e.g. 10458"/></label><button className="btn primary wide" disabled={!receipt.trim()} onClick={submit}>{t.send}</button></div></div>}{notice&&<button className="toast" onClick={()=>setNotice('')}>{notice} ×</button>}<footer>WWW · WINE SALES INCENTIVES <span>DEMO MVP</span></footer></div>}
+import { FormEvent, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
+
+type Lang = 'en' | 'ru' | 'ka';
+const copy = {
+  en: { title: 'Wines, Winemakers and Waiters', subtitle: 'A better way to sell wine', login: 'Sign in', email: 'Email', password: 'Password', submit: 'Sign in', signing: 'Signing in…', logout: 'Sign out', admin: 'WWW administrator', welcome: 'You are signed in and your administrator access is confirmed.', checking: 'Checking your access…', noRole: 'Your account is active, but no WWW role has been assigned yet.', config: 'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the Vercel project environment variables.', reset: 'Enter your email and password to continue.' },
+  ru: { title: 'Wines, Winemakers and Waiters', subtitle: 'Умнее продаём вино', login: 'Вход в систему', email: 'Email', password: 'Пароль', submit: 'Войти', signing: 'Входим…', logout: 'Выйти', admin: 'Администратор WWW', welcome: 'Вы вошли в систему. Права администратора подтверждены.', checking: 'Проверяем ваши права…', noRole: 'Аккаунт активен, но роль в WWW пока не назначена.', config: 'Supabase не настроен. Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в переменные окружения проекта Vercel.', reset: 'Введите email и пароль для входа.' },
+  ka: { title: 'Wines, Winemakers and Waiters', subtitle: 'ღვინის გაყიდვის უკეთესი გზა', login: 'სისტემაში შესვლა', email: 'Email', password: 'პაროლი', submit: 'შესვლა', signing: 'შესვლა…', logout: 'გასვლა', admin: 'WWW ადმინისტრატორი', welcome: 'თქვენ შესული ხართ და ადმინისტრატორის უფლებები დადასტურებულია.', checking: 'უფლებების შემოწმება…', noRole: 'ანგარიში აქტიურია, მაგრამ WWW როლი ჯერ არ არის მინიჭებული.', config: 'Supabase არ არის კონფიგურირებული. Vercel-ში დაამატეთ VITE_SUPABASE_URL და VITE_SUPABASE_ANON_KEY.', reset: 'გასაგრძელებლად შეიყვანეთ ელფოსტა და პაროლი.' }
+};
+
+export default function App() {
+  const [lang, setLang] = useState<Lang>('ru');
+  const [session, setSession] = useState<Session | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState('');
+  const t = copy[lang];
+
+  useEffect(() => {
+    if (!supabase) { setBusy(false); return; }
+    let alive = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!alive) return;
+      if (error) setMessage(error.message);
+      setSession(data.session);
+      setBusy(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!alive) return;
+      setSession(nextSession);
+      setIsAdmin(null);
+      setMessage('');
+      setBusy(false);
+    });
+    return () => { alive = false; listener.subscription.unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !session) { setIsAdmin(null); return; }
+    let alive = true;
+    supabase.rpc('is_platform_admin').then(({ data, error }) => {
+      if (!alive) return;
+      setIsAdmin(error ? false : Boolean(data));
+      if (error) setMessage(error.message);
+    });
+    return () => { alive = false; };
+  }, [session]);
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase) return;
+    setSubmitting(true);
+    setMessage('');
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) setMessage(error.message);
+    setSubmitting(false);
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) setMessage(error.message);
+    setIsAdmin(null);
+  }
+
+  return <div className="app auth-app">
+    <header>
+      <div className="brand"><div className="mark">🍷</div><div><b>WWW</b><small>WINES · WINEMAKERS · WAITERS</small></div></div>
+      <select aria-label="Language" value={lang} onChange={e => setLang(e.target.value as Lang)}><option value="en">EN</option><option value="ru">RU</option><option value="ka">KA</option></select>
+    </header>
+    <main>
+      <div className="eyebrow">WINE SALES INCENTIVES</div>
+      <h1>{t.title}</h1>
+      <p className="sub">{t.subtitle}</p>
+      {!isSupabaseConfigured ? <div className="auth-message error">{t.config}</div> :
+        busy ? <div className="auth-panel">{t.checking}</div> :
+        !session ? <form className="auth-panel" onSubmit={signIn}>
+          <h2>{t.login}</h2>
+          <p>{t.reset}</p>
+          <label>{t.email}<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
+          <label>{t.password}<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" /></label>
+          <button className="btn primary wide" type="submit" disabled={submitting}>{submitting ? t.signing : t.submit}</button>
+        </form> :
+        <section className="auth-panel">
+          <div className="auth-status"><span className="status-dot" />{session.user.email}</div>
+          {isAdmin === null ? <p>{t.checking}</p> : isAdmin ? <><div className="admin-mark">WWW</div><h2>{t.admin}</h2><p>{t.welcome}</p></> : <><h2>{t.login}</h2><p>{t.noRole}</p></>}
+          <button className="btn quiet wide" onClick={signOut}>{t.logout}</button>
+        </section>
+      }
+      {message && <div className="auth-message error">{message}</div>}
+    </main>
+    <footer>WWW · WINE SALES INCENTIVES <span>EARLY ACCESS</span></footer>
+  </div>;
+}
