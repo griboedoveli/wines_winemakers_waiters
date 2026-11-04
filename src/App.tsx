@@ -148,7 +148,7 @@ export default function App() {
       return;
     }
     if (!profile) {
-      setMessage('Аккаунт с таким телефоном не найден. Сначала создай пользователя в Supabase → Authentication → Users и укажи этот номер в формате +995XXXXXXXXX.');
+      setMessage('Аккаунт с таким номером телефона не найден.');
       setManagerBusy(false);
       return;
     }
@@ -268,7 +268,6 @@ export default function App() {
               </div>)}{organizations.length === 0 && <p>{t.empty}</p>}</div>
               <div className="manager-assignment">
                 <h2>Назначить менеджера ресторана</h2>
-                <p>Сначала создай пользователя в Supabase → Authentication → Users и укажи номер телефона. Затем привяжи его к ресторану по этому номеру.</p>
                 <form onSubmit={assignManager}>
                   <label>Ресторан<select required value={managerOrgId} onChange={e => setManagerOrgId(e.target.value)}>
                     <option value="">Выбери ресторан</option>
