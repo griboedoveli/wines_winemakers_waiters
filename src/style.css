@@ -67,3 +67,9 @@
  .org-row-managed{display:block}
  .org-actions{max-width:none;justify-content:flex-start;margin-top:10px}
 }
+
+
+.org-edit-form{width:100%;max-width:420px;display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;margin:2px 0 8px}
+.org-edit-form label{display:block;font-size:10px;color:#777;margin:7px 0}
+.org-edit-form input{display:block;width:100%;padding:10px;border:1px solid #e3e0d8;border-radius:8px;margin-top:6px;font:12px 'DM Sans';background:#fff}
+@media(max-width:480px){.org-edit-form{grid-template-columns:1fr}}
