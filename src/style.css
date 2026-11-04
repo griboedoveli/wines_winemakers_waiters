@@ -73,3 +73,20 @@
 .org-edit-form label{display:block;font-size:10px;color:#777;margin:7px 0}
 .org-edit-form input{display:block;width:100%;padding:10px;border:1px solid #e3e0d8;border-radius:8px;margin-top:6px;font:12px 'DM Sans';background:#fff}
 @media(max-width:480px){.org-edit-form{grid-template-columns:1fr}}
+
+
+/* Keep organization categories and cards aligned consistently */
+.org-group{display:block;width:100%;min-width:0}
+.org-group .org-list{display:block;width:100%;min-width:0}
+.org-row-managed{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;column-gap:18px;row-gap:10px;width:100%}
+.org-main{min-width:0;width:100%}
+.org-actions{display:flex;align-items:flex-start;justify-content:flex-end;gap:7px;flex-wrap:wrap;max-width:none}
+.manager-cards{max-width:100%}
+.org-edit-form{width:100%;max-width:560px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+.org-edit-form label{min-width:0}
+.org-edit-form input{width:100%;min-width:0}
+@media(max-width:600px){
+ .org-row-managed{grid-template-columns:minmax(0,1fr)}
+ .org-actions{justify-content:flex-start}
+ .org-edit-form{grid-template-columns:minmax(0,1fr)}
+}
