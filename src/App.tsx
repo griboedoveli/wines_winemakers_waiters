@@ -357,7 +357,7 @@ export default function App() {
             <button className="text-link back-link" type="button" onClick={() => { setPublicView('home'); setOtpSent(false); setShowEmailLogin(false); setMessage(''); }}>← На главную</button>
             <h2>Вход в WWW</h2>
             <form onSubmit={signIn}>
-              <p>Вход администратора.</p>
+              <p>Войдите с помощью email и пароля.</p>
               <label>{t.email}<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
               <label>{t.password}<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" /></label>
               <button className="btn primary wide" type="submit" disabled={submitting}>{submitting ? t.signing : t.submit}</button>
@@ -371,7 +371,7 @@ export default function App() {
               <label>Пароль<input type="password" autoComplete="new-password" minLength={8} required value={password} onChange={e => setPassword(e.target.value)} placeholder="Минимум 8 символов" /></label>
               <button className="btn primary wide" type="submit" disabled={authFlowBusy || !email.trim() || password.length < 8}>{authFlowBusy ? 'Создаём аккаунт…' : 'Зарегистрироваться'}</button>
             </form>
-          </>          </>}
+          </>}
         </section> :
         <section className="auth-panel">
           <div className="auth-status"><span className="status-dot" />{session.user.email}</div>
